@@ -1,7 +1,7 @@
 # AmigoXchange
 
 
-AmigoXchange is a decentralized crypto-to-fiat platform built on Solana, enabling users to swap any token and off-ramp to Naira — all directly from their wallet, with no intermediaries.
+AmigoXchange is a decentralized crypto-to-fiat platform built on Solana, enabling users to swap any token and off-ramp to Fiat - all directly from their wallet, with no intermediaries and no wallet confusion.
 
 Features
 
