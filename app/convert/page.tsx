@@ -1011,36 +1011,93 @@ export function ConversionConfirmationDialog({
       setTxSignature(signature);
       
       // Save transaction to Supabase
-      const dbSaveResult = await saveTransactionToSupabase(signature);
-      if (!dbSaveResult) {
-        console.warn("Transaction saved on blockchain but failed to save in database");
-      }
+  //     const dbSaveResult = await saveTransactionToSupabase(signature);
+  //     if (!dbSaveResult) {
+  //       console.warn("Transaction saved on blockchain but failed to save in database");
+  //     }
       
-      setStatus("success");
-      toast({
-        title: "Transfer Successful",
-        description: `Successfully transferred ${conversionDetails.fromAmount} ${conversionDetails.fromCurrency}`,
-        variant: "default",
-      });
+  //     setStatus("success");
+  //     toast({
+  //       title: "Transfer Successful",
+  //       description: `Successfully transferred ${conversionDetails.fromAmount} ${conversionDetails.fromCurrency}`,
+  //       variant: "default",
+  //     });
 
-      setTimeout(() => {
-        onOpenChange(false);
-        setStatus("idle");
-        onConfirm();
-      }, 3000);
-    } catch (error) {
-      setStatus("error");
-      let errorMsg = "Failed to transfer tokens";
-      if (error instanceof Error) errorMsg = error.message;
-      setErrorMessage(errorMsg);
+  //     setTimeout(() => {
+  //       onOpenChange(false);
+  //       setStatus("idle");
+  //       onConfirm();
+  //     }, 3000);
+  //   } catch (error) {
+  //     setStatus("error");
+  //     let errorMsg = "Failed to transfer tokens";
+  //     if (error instanceof Error) errorMsg = error.message;
+  //     setErrorMessage(errorMsg);
+  //     toast({
+  //       title: "Transfer Failed",
+  //       description: errorMsg,
+  //       variant: "destructive",
+  //     });
+  //   }
+  // };
+ // Save transaction to Supabase
+ const saveTransactionToSupabase = async (signature: string) => {
+  try {
+    // Check if Supabase client is properly initialized
+    if (!supabase) {
+      console.error("Supabase environment variables are not configured");
       toast({
-        title: "Transfer Failed",
-        description: errorMsg,
+        title: "Warning",
+        description: "Transaction saved on blockchain but database update failed: Missing configuration",
         variant: "destructive",
       });
+      return false;
     }
-  };
 
+    console.log("Saving transaction to Supabase with ID:", signature);
+    
+    // Process the toAmount correctly by removing commas before parsing to float
+    const cleanToAmount = conversionDetails.toAmount.replace(/,/g, "");
+    
+    // Create transaction object
+    const transactionData = {
+      transaction_id: signature,
+      from_amount: parseFloat(conversionDetails.fromAmount),
+      from_currency: conversionDetails.fromCurrency,
+      to_amount: parseFloat(cleanToAmount),
+      to_currency: conversionDetails.toCurrency,
+      bank_name: conversionDetails.bankAccount.bankName,
+      account_number: conversionDetails.bankAccount.accountNumber,
+      account_name: conversionDetails.bankAccount.accountName,
+      exchange_rate: conversionDetails.exchangeRate,
+      fee: conversionDetails.fee,
+      wallet_address: publicKey?.toString(),
+      status: "completed",
+      created_at: new Date().toISOString(),
+    };
+    
+    console.log("Transaction data:", transactionData);
+    
+    // Insert into Supabase
+    const { data, error } = await supabase
+      .from("transactions")
+      .insert(transactionData)
+      .select();
+
+    if (error) {
+      console.error("Supabase error details:", error);
+      toast({
+        title: "Database Error",
+        description: `Failed to save transaction: ${error.message}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    console.log("Transaction saved successfully:", data);
+    return true;
+
+    
   // Calculate estimated delivery time (1-3 hours from now)
   const getEstimatedDeliveryTime = () => {
     const now = new Date();
