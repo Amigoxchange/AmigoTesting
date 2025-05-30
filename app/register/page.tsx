@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAuth } from "@/context/auth-context"
 import { useToast } from "@/hooks/use-toast"
+// import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { supabase } from "@/lib/supabase/client"
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1)
@@ -20,22 +21,37 @@ export default function RegisterPage() {
   const [otp, setOtp] = useState("")
   const [showOtpInput, setShowOtpInput] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { session, signIn, verifyOtp } = useAuth()
+  // const supabase = createClientComponentClient()
   const router = useRouter()
   const { toast } = useToast()
 
+  // Redirect if already logged in
   useEffect(() => {
-    if (session) {
-      router.push("/dashboard")
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        router.push("/dashboard")
+      }
     }
-  }, [session, router])
+    checkSession()
 
-  const handleCreateUsername = async (e: React.FormEvent) => {
+    // Listen for auth changes (optional)
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        router.push("/dashboard")
+      }
+    })
+
+    return () => listener?.subscription.unsubscribe()
+  }, [router, supabase])
+
+  // Step 1: Username creation
+  const handleCreateUsername = (e: React.FormEvent) => {
     e.preventDefault()
-    if (username.length < 3) {
+    if (username.trim().length < 3) {
       toast({
-        title: "Invalid Username",
-        description: "Username must be at least 3 characters long.",
+        title: "Invalid username",
+        description: "Username must be at least 3 characters",
         variant: "destructive",
       })
       return
@@ -43,27 +59,74 @@ export default function RegisterPage() {
     setStep(2)
   }
 
+  // Step 2: Send OTP email
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    await signIn(email)
-    setIsLoading(false)
-    setShowOtpInput(true)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          // No redirect here because we handle manual OTP input
+        },
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "OTP Sent",
+        description: "Check your email for the verification code",
+        variant: "default",
+      })
+      setShowOtpInput(true)
+    } catch (error: any) {
+      toast({
+        title: "Failed to send OTP",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
+  // Step 3: Verify OTP manually and redirect
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    await verifyOtp(email, otp)
-    setIsLoading(false)
-  }
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: "email",
+      })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
-      </div>
-    )
+      if (error) throw error
+
+      if (data.session) {
+        toast({
+          title: "Verification successful",
+          description: "Redirecting to dashboard...",
+          variant: "default",
+        })
+        router.push("/dashboard")
+      } else {
+        toast({
+          title: "Verification failed",
+          description: "No session created. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Verification failed",
+        description: error.message || "Invalid OTP. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -79,7 +142,7 @@ export default function RegisterPage() {
           <CardDescription>Complete the steps below to get started with Amigo Exchange</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue={`step-${step}`} value={`step-${step}`} className="w-full">
+          <Tabs value={`step-${step}`} className="w-full" onValueChange={(val) => setStep(Number(val.split("-")[1]))}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="step-1" disabled>
                 Username
@@ -100,19 +163,17 @@ export default function RegisterPage() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       required
+                      minLength={3}
                     />
                     <p className="text-xs text-muted-foreground">
                       This username will be used to identify you on the platform.
                     </p>
                   </div>
-
                   <div className="flex justify-between">
                     <Button variant="outline" type="button" onClick={() => router.push("/")}>
                       Back
                     </Button>
-                    <Button type="submit">
-                      Next
-                    </Button>
+                    <Button type="submit">Next</Button>
                   </div>
                 </div>
               </form>
@@ -123,54 +184,32 @@ export default function RegisterPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Enter your email address"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        disabled={showOtpInput}
-                      />
-                      {!showOtpInput && (
-                        <Button 
-                          type="submit" 
-                          disabled={isLoading || !email}
-                        >
-                          {isLoading ? "Sending..." : "Send OTP"}
-                        </Button>
-                      )}
-                    </div>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      disabled={showOtpInput}
+                    />
                   </div>
 
                   {showOtpInput && (
                     <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2">
                       <Label htmlFor="otp">Verification Code</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="otp"
-                          type="text"
-                          placeholder="Enter the 6-digit code"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                          required
-                          maxLength={6}
-                          className="text-center tracking-widest"
-                        />
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => {
-                            setShowOtpInput(false)
-                            setOtp("")
-                          }}
-                        >
-                          Change Email
-                        </Button>
-                      </div>
+                      <Input
+                        id="otp"
+                        type="text"
+                        placeholder="Enter the 6-digit code"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        required
+                        maxLength={6}
+                        className="text-center tracking-widest"
+                      />
                       <p className="text-xs text-muted-foreground">
-                        Enter the 6-digit code sent to your email
+                        Enter the 6-digit code sent to your email.
                       </p>
                     </div>
                   )}
@@ -178,25 +217,29 @@ export default function RegisterPage() {
                   <Separator />
 
                   <div className="flex justify-between">
-                    <Button variant="outline" type="button" onClick={() => setStep(1)}>
-                      Back
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => {
+                        setShowOtpInput(false)
+                        setOtp("")
+                      }}
+                    >
+                      {showOtpInput ? "Change Email" : "Back"}
                     </Button>
-                    {showOtpInput && (
-                      <Button 
-                        type="submit" 
-                        disabled={isLoading || !otp}
-                        className="min-w-[100px]"
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Verifying...
-                          </>
-                        ) : (
-                          "Verify"
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      type="submit"
+                      disabled={isLoading || (!showOtpInput ? !email : !otp)}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          {showOtpInput ? "Verifying..." : "Sending..."}
+                        </>
+                      ) : (
+                        showOtpInput ? "Verify" : "Send OTP"
+                      )}
+                    </Button>
                   </div>
                 </div>
               </form>
@@ -209,8 +252,7 @@ export default function RegisterPage() {
             <span className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-primary" : "bg-muted"}`}></span>
           </div>
           <p className="text-center text-xs text-muted-foreground">
-            Step {step} of 2:{" "}
-            {step === 1 ? "Create Username" : "Verify Email"}
+            Step {step} of 2: {step === 1 ? "Create Username" : "Verify Email"}
           </p>
         </CardFooter>
       </Card>
