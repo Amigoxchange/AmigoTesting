@@ -11,41 +11,57 @@ import { useWallet } from "@solana/wallet-adapter-react"
 import { useWalletModal } from "@solana/wallet-adapter-react-ui"
 import { useToast } from "@/hooks/use-toast"
 import { truncateAddress } from "@/lib/utils"
+import { supabase } from "@/lib/supabase/client" // Make sure this import is correct for your project
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [checkingUser, setCheckingUser] = useState(false)
   const { toast } = useToast()
   const { setVisible } = useWalletModal()
   const { connected, publicKey, disconnect } = useWallet()
   const router = useRouter()
 
-  // Handle navigation after successful connection
+  // After wallet connection, check if user exists
   useEffect(() => {
-    if (connected && publicKey) {
-      const timeoutId = setTimeout(() => {
-        router.push("/dashboard")
-      }, 1000)
+    const checkUserExists = async () => {
+      if (connected && publicKey) {
+        setCheckingUser(true)
+        // Query your user/profiles table for this wallet address
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("wallet_address", publicKey.toString())
+          .single()
 
-      return () => clearTimeout(timeoutId)
+        if (error || !data) {
+          toast({
+            title: "Account Not Found",
+            description: "No account found for this wallet. Please register first.",
+            variant: "destructive",
+          })
+          setCheckingUser(false)
+          setTimeout(() => {
+            router.push("/register")
+          }, 1500)
+        } else {
+          // User exists, proceed to dashboard
+          router.push("/dashboard")
+        }
+      }
     }
-  }, [connected, publicKey, router])
+    checkUserExists()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey])
 
   const handleConnectWallet = async () => {
     try {
       setIsLoading(true)
-      
       if (!connected) {
         await setVisible(true)
       } else {
         await disconnect()
         await setVisible(true)
       }
-
-      toast({
-        title: "Wallet Connected",
-        description: "Your wallet has been successfully connected.",
-        variant: "default",
-      })
     } catch (error) {
       console.error("Wallet connection error:", error)
       toast({
@@ -57,13 +73,6 @@ export default function LoginPage() {
       setIsLoading(false)
     }
   }
-
-  // Prevent navigation if wallet is not connected
-  useEffect(() => {
-    if (!connected && !publicKey) {
-      router.push("/login")
-    }
-  }, [connected, publicKey, router])
 
   return (
     <div className="container flex min-h-screen flex-col items-center justify-center py-8 bg-background text-foreground">
@@ -89,13 +98,13 @@ export default function LoginPage() {
 
             <Button 
               onClick={handleConnectWallet} 
-              disabled={isLoading}
+              disabled={isLoading || checkingUser}
               className="w-full"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {connected ? "Redirecting..." : "Connecting..."}
+                  {connected ? "Checking..." : "Connecting..."}
                 </>
               ) : connected ? (
                 <>
@@ -110,10 +119,14 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {connected && publicKey && (
+            {(checkingUser || (connected && publicKey)) && (
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Redirecting to dashboard...</span>
+                <span>
+                  {checkingUser
+                    ? "Checking account..."
+                    : "Checking account..."}
+                </span>
               </div>
             )}
           </div>
@@ -129,4 +142,6 @@ export default function LoginPage() {
       </Card>
     </div>
   )
-} 
+}
+
+
