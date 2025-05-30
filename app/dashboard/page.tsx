@@ -1229,25 +1229,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Conversion Confirmation Dialog */}
-      {/* <ConversionConfirmationDialog
-        open={showConversionConfirmation}
-        onOpenChange={setShowConversionConfirmation}
-        conversionDetails={{
-          fromAmount: convertAmount,
-          fromCurrency: convertFrom.toUpperCase(),
-          toAmount: convertToAmount,
-          toCurrency: convertTo.toUpperCase(),
-          exchangeRate: getCurrentExchangeRate(),
-          fee: `0.5 ${convertFrom.toUpperCase()}`,
-          bankAccount: bankAccount || {
-            bankName: "",
-            accountNumber: "",
-            accountName: "",
-          },
-        }}
-        onConfirm={handleConversionConfirmed} */}
-      />
+      
     </div>
   );
 }
