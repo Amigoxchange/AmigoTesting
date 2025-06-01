@@ -868,6 +868,7 @@ export function ConversionConfirmationDialog({
        return false;
     }
   };
+}
 
   const handleConfirm = async () => {
 
@@ -886,7 +887,7 @@ export function ConversionConfirmationDialog({
     setTxSignature(null);
     setErrorMessage(null);
 
-    try {
+ 
 
       // Check Supabase configuration first
     if (!supabase) {
@@ -921,7 +922,7 @@ export function ConversionConfirmationDialog({
             lamports: amountInLamports,
           })
         );
-      } else {
+        } else {
         // SPL token transfer
         const currencyKey =
           conversionDetails.fromCurrency.toLowerCase() as keyof typeof SPL_MINTS;
@@ -1009,6 +1010,7 @@ export function ConversionConfirmationDialog({
         );
 
       setTxSignature(signature);
+    
       
       // Save transaction to Supabase
   //     const dbSaveResult = await saveTransactionToSupabase(signature);
@@ -1053,6 +1055,7 @@ export function ConversionConfirmationDialog({
       });
       return false;
     }
+  }
 
     console.log("Saving transaction to Supabase with ID:", signature);
     
@@ -1097,7 +1100,7 @@ export function ConversionConfirmationDialog({
     console.log("Transaction saved successfully:", data);
     return true;
 
-    
+ }  
   // Calculate estimated delivery time (1-3 hours from now)
   const getEstimatedDeliveryTime = () => {
     const now = new Date();
