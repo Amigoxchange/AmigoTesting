@@ -813,7 +813,7 @@ export function ConversionConfirmationDialog({
           variant: "destructive",
         });
         return false;
-      }
+      };
 
       console.log("Saving transaction to Supabase with ID:", signature);
       // Create transaction object
